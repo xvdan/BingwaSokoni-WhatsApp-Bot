@@ -1,5 +1,6 @@
 const bundles = require('../lib/bundles');
 const utils = require('../lib/utils');
+const { sendButtons } = require('gifted-btns');
 
 module.exports = {
   name: 'plans',
@@ -9,26 +10,46 @@ module.exports = {
   async execute(sock, msg) {
     const jid = msg.key.remoteJid;
     
-    let text = '📋 *ALL AVAILABLE PLANS*\n\n';
+    // Send as separate messages for better readability
+    await sock.sendMessage(jid, { 
+      text: '📋 *BINGWA SOKONI - ALL PLANS*\n\n' +
+            'Reply with *.buy* to purchase any plan.' 
+    });
     
     // Data Bundles
-    text += '📶 *DATA BUNDLES*\n';
+    let dataText = '📶 *DATA BUNDLES*\n';
     bundles.getByCategory('data').forEach(b => {
-      text += `• ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
+      dataText += `└ ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
     });
+    await sock.sendMessage(jid, { text: dataText });
     
-    text += '\n💬 *SMS BUNDLES*\n';
+    // SMS Bundles
+    let smsText = '💬 *SMS BUNDLES*\n';
     bundles.getByCategory('sms').forEach(b => {
-      text += `• ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
+      smsText += `└ ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
     });
+    await sock.sendMessage(jid, { text: smsText });
     
-    text += '\n📞 *VOICE BUNDLES*\n';
+    // Voice Bundles
+    let voiceText = '📞 *VOICE BUNDLES*\n';
     bundles.getByCategory('voice').forEach(b => {
-      text += `• ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
+      voiceText += `└ ${b.name} - ${utils.formatCurrency(b.amount)} (${b.validity})\n`;
     });
+    await sock.sendMessage(jid, { text: voiceText });
     
-    text += '\n\nType *.buy* to purchase';
-    
-    await sock.sendMessage(jid, { text });
+    // Quick action buttons
+    try {
+      await sendButtons(sock, jid, {
+        text: 'Ready to purchase?',
+        footer: 'Click below to start',
+        buttons: [
+          { id: 'category_data', text: '📶 Buy Data' },
+          { id: 'category_sms', text: '💬 Buy SMS' },
+          { id: 'category_voice', text: '📞 Buy Voice' }
+        ]
+      });
+    } catch (error) {
+      await sock.sendMessage(jid, { text: 'Type .buy to start purchasing' });
+    }
   }
 };

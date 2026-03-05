@@ -205,20 +205,56 @@ async function handleMessage(sock, msg) {
                   transactionId: result.transactionId 
                 });
                 
-                // Wait for payment confirmation (you can implement proper callback later)
+                // Wait for payment confirmation
                 setTimeout(async () => {
                   const currentSession = sessions.getSession(sender);
                   if (currentSession && currentSession.step === 'processing_payment') {
-                    await sock.sendMessage(jid, { 
-                      text: `✅ *Payment Successful!*\n\n` +
-                            `Bundle: ${session.bundle.name}\n` +
-                            `Amount: ${utils.formatCurrency(session.bundle.amount)}\n\n` +
-                            `Your bundle will be delivered shortly.\n` +
-                            `Join our channel for updates: t.me/bingwasokoni` 
+                    
+                    // Send success message with buttons
+                    const { sendButtons } = require('gifted-btns');
+                    
+                    await sendButtons(sock, jid, {
+                      text: `✅ *PAYMENT SUCCESSFUL!*\n\n` +
+                            `📦 *Bundle:* ${session.bundle.name}\n` +
+                            `💰 *Amount:* ${utils.formatCurrency(session.bundle.amount)}\n` +
+                            `📱 *Phone:* ${session.phone}\n\n` +
+                            `Your bundle will be delivered within 5 minutes.`,
+                      footer: 'Thank you for choosing Bingwa Sokoni',
+                      buttons: [
+                        { 
+                          name: 'cta_url', 
+                          buttonParamsJson: JSON.stringify({ 
+                            display_text: '📢 JOIN WHATSAPP CHANNEL', 
+                            url: 'https://whatsapp.com/channel/0029Vb81SnR42DcZd0kd7j28' 
+                          }) 
+                        },
+                        { 
+                          name: 'cta_url', 
+                          buttonParamsJson: JSON.stringify({ 
+                            display_text: '👥 JOIN WHATSAPP GROUP', 
+                            url: 'https://chat.whatsapp.com/CcGe1DV3vzzBvaNZd9hsoO' 
+                          }) 
+                        },
+                        { 
+                          name: 'cta_url', 
+                          buttonParamsJson: JSON.stringify({ 
+                            display_text: '📱 JOIN TELEGRAM', 
+                            url: 'https://t.me/bingwasokoni' 
+                          }) 
+                        },
+                        { 
+                          name: 'cta_url', 
+                          buttonParamsJson: JSON.stringify({ 
+                            display_text: '🌐 VISIT WEBSITE', 
+                            url: 'https://bingwasokoni.co.ke' 
+                          }) 
+                        }
+                      ]
                     });
+                    
                     sessions.clearSession(sender);
                   }
-                }, 30000); // Wait 30 seconds for payment
+                }, 30000); // 30 seconds delay
                 
               } else {
                 console.error('❌ STK Push failed:', result.error);
@@ -302,6 +338,10 @@ async function handleButtonClick(sock, msg, jid, sender, buttonId) {
           text: `✅ Test button *${buttonId}* clicked successfully!` 
         });
       }
+    } else if (buttonId === 'help_support') {
+      await sock.sendMessage(jid, { 
+        text: `📞 *Support*\n\nContact us at: ${config.OWNER_NUMBER}\n\nWe're here to help 24/7!` 
+      });
     }
     
   } catch (error) {
