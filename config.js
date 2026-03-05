@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 
+// Load .env file
 if (fs.existsSync(path.join(__dirname, '.env'))) {
   require('dotenv').config();
 }
@@ -20,8 +21,8 @@ module.exports = {
   MPESA_PASSKEY: process.env.MPESA_PASSKEY,
   
   // Server
-  BASE_URL: process.env.BASE_URL || 'http://localhost:3000',
-  CALLBACK_URL: process.env.CALLBACK_URL || 'http://localhost:3000/api/mpesa/callback',
+  BASE_URL: process.env.BASE_URL || 'http://144.91.72.163:3000',
+  CALLBACK_URL: process.env.CALLBACK_URL || 'http://144.91.72.163:3000/api/mpesa/callback',
   PORT: process.env.PORT || 3000,
   
   // Payment
