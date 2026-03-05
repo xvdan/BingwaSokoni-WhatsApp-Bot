@@ -1,13 +1,29 @@
-BingwaSokoni-WhatsApp-Bot
+bingwa-sokoni-bot/
 │
 ├── commands/
 │   ├── buy.js
-│   ├── menu.js
+│   ├── plans.js
+│   ├── help.js
+│   └── balance.js
 │
-├── config.js
-├── index.js
-├── package.json
-├── app.json
-├── README.md
+├── lib/
+│   ├── mpesa.js
+│   ├── sessions.js
+│   ├── bundles.js
+│   └── utils.js
+│
+├── api/
+│   ├── server.js
+│   ├── pay.js
+│   └── verify.js
+│
+├── session/
+│   └── (session files will be stored here)
+│
 ├── .env
-└── .gitignore
+├── .gitignore
+├── package.json
+├── index.js
+├── handler.js
+├── config.js
+└── README.md
