@@ -10,7 +10,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const zlib = require('zlib');
 const config = require('./config');
-const { loadCommands, handleMessage, handleStatus } = require('./handler');
+const { loadCommands, handleMessage, handleStatus } = require('./handler-simple');
 
 // Create session directory if it doesn't exist
 const sessionDir = path.join(__dirname, 'session');
