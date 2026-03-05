@@ -15,19 +15,17 @@ module.exports = {
     
     console.log(`📝 Buy command executed by: ${sender}`);
     
-    // Create or get session
-    let session = sessions.getSession(sender);
-    if (!session) {
-      session = sessions.createSession(sender);
-    }
+    // Clear any existing session
+    sessions.clearSession(sender);
     
-    // Update session step
+    // Create new session
+    const session = sessions.createSession(sender);
     sessions.updateSession(sender, { 
       step: sessions.sessionSteps.SELECTING_CATEGORY,
-      jid: jid // Store the chat JID
+      jid: jid
     });
     
-    console.log(`📋 Session created/updated for: ${sender}`);
+    console.log(`📋 New session created for: ${sender}`);
     
     // Show category selection with buttons
     try {
@@ -60,20 +58,18 @@ module.exports = {
     const jid = msg.key.remoteJid;
     const sender = msg.key.participant || jid;
     
-    console.log(`🔘 Button clicked: ${buttonId} by: ${sender}`);
+    console.log(`🔘 HANDLE BUTTON CALLED with ID: ${buttonId} from: ${sender}`);
     
     try {
-      const session = sessions.getSession(sender);
+      // Get or create session
+      let session = sessions.getSession(sender);
       
       if (!session) {
-        console.log(`⚠️ No session found for: ${sender}`);
-        await sock.sendMessage(jid, { 
-          text: 'Please start a new purchase by typing .buy' 
-        });
-        return;
+        console.log(`⚠️ No session found for: ${sender}, creating new one`);
+        session = sessions.createSession(sender);
       }
       
-      console.log(`📊 Session step: ${session.step}`);
+      console.log(`📊 Current session step: ${session.step}`);
       
       // Handle category selection
       if (buttonId.startsWith('category_')) {
@@ -155,16 +151,17 @@ module.exports = {
           });
           console.log(`💰 Manual payment instructions sent`);
           
-          // Clear session after manual payment instructions
-          // Keep session for 5 minutes to allow for payment confirmation
+          // Clear session after 5 minutes
           setTimeout(() => {
             const currentSession = sessions.getSession(sender);
             if (currentSession && currentSession.paymentMethod === 'manual') {
               sessions.clearSession(sender);
               console.log(`🧹 Cleared manual payment session for: ${sender}`);
             }
-          }, 300000); // 5 minutes
+          }, 300000);
         }
+      } else {
+        console.log(`⚠️ Unknown button ID: ${buttonId}`);
       }
     } catch (error) {
       console.error('❌ Error in handleButton:', error);

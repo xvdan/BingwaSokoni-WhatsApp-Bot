@@ -43,40 +43,69 @@ async function handleMessage(sock, msg) {
       message.extendedTextMessage?.text ||
       '';
     
-    console.log(`📨 Message from ${sender}: ${text}`);
+    console.log(`📨 Message from ${sender}: ${text || '[NON-TEXT MESSAGE]'}`);
     
-    // Handle button responses
+    // ============================================
+    // HANDLE BUTTON RESPONSES - CRITICAL FIX HERE
+    // ============================================
+    
+    // Check for various button response types
     if (message.buttonsResponseMessage) {
       const buttonId = message.buttonsResponseMessage.selectedButtonId;
-      console.log(`🔘 Button response received: ${buttonId} from ${sender}`);
+      const buttonText = message.buttonsResponseMessage.selectedDisplayText;
+      console.log(`🔘 BUTTON CLICKED! ID: ${buttonId}, Text: ${buttonText} from ${sender}`);
       
-      // Find which command handles this button
-      if (buttonId.startsWith('category_') || buttonId.startsWith('pay_')) {
-        const buyCommand = commands.get('buy');
-        if (buyCommand && buyCommand.handleButton) {
-          await buyCommand.handleButton(sock, msg, buttonId);
-        } else {
-          console.log('❌ Buy command or handleButton not found');
-        }
-      } else {
-        // Handle other button types if needed
-        console.log(`⚠️ Unhandled button type: ${buttonId}`);
+      // Forward to buy command handler
+      const buyCommand = commands.get('buy');
+      if (buyCommand && buyCommand.handleButton) {
+        await buyCommand.handleButton(sock, msg, buttonId);
       }
       return;
     }
     
-    // Handle list responses (if you use list messages)
-    if (message.listResponseMessage) {
-      const selection = message.listResponseMessage.singleSelectReply?.selectedRowId;
-      console.log(`📋 List selection: ${selection} from ${sender}`);
-      // Handle list selections here
+    // Check for interactive message responses (another button format)
+    if (message.interactiveResponseMessage) {
+      console.log(`🔘 INTERACTIVE BUTTON RESPONSE from ${sender}`);
+      
+      // Try to extract button ID from interactive response
+      let buttonId = null;
+      if (message.interactiveResponseMessage.nativeFlowResponseMessage) {
+        try {
+          const params = JSON.parse(message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson);
+          buttonId = params.id;
+        } catch (e) {
+          console.log('Failed to parse native flow response:', e);
+        }
+      }
+      
+      if (buttonId) {
+        const buyCommand = commands.get('buy');
+        if (buyCommand && buyCommand.handleButton) {
+          await buyCommand.handleButton(sock, msg, buttonId);
+        }
+      }
       return;
     }
     
-    // Get user session
+    // Check for list response messages
+    if (message.listResponseMessage) {
+      const selection = message.listResponseMessage.singleSelectReply?.selectedRowId;
+      console.log(`📋 LIST SELECTION: ${selection} from ${sender}`);
+      
+      if (selection) {
+        // Handle list selections here
+        const buyCommand = commands.get('buy');
+        if (buyCommand && buyCommand.handleButton) {
+          await buyCommand.handleButton(sock, msg, selection);
+        }
+      }
+      return;
+    }
+    
+    // Get user session for text-based flow
     const session = sessions.getSession(sender);
     
-    // Handle purchase flow
+    // Handle purchase flow for text responses
     if (session) {
       console.log(`🔄 Session step: ${session.step} for user: ${sender}`);
       
@@ -146,7 +175,6 @@ async function handleMessage(sock, msg) {
                   `Enter your PIN to complete payment.` 
           });
           
-          // Here you would call your M-Pesa API
           console.log(`💰 Initiating STK Push for ${phone} amount: ${session.bundle.amount}`);
           
           // Simulate payment processing
