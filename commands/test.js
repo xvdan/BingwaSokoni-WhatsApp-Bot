@@ -1,49 +1,47 @@
 const { sendButtons } = require('gifted-btns');
 
 module.exports = {
-  name: 'test',
-  description: 'Test button functionality',
-  aliases: ['btn', 'button'],
+  name: 'testbtn',
+  description: 'Test buttons with proper format',
 
   async execute(sock, msg, args) {
     const jid = msg.key.remoteJid;
     const sender = msg.key.participant || jid;
     
-    console.log(`🧪 Test command executed by: ${sender}`);
+    console.log(`🧪 Test button command by: ${sender}`);
     
     try {
       await sendButtons(sock, jid, {
-        text: '🧪 *Button Test*\n\nIf you see this message and buttons, click one to test:',
-        footer: 'This is a test footer',
+        title: '🧪 *Button Test*',
+        text: 'Testing different button types:',
+        footer: 'Click any button',
         buttons: [
-          {
-            id: 'test_1',
-            text: '✅ Test Button 1'
+          { 
+            name: 'quick_reply', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '📋 Quick Reply', 
+              id: 'test_quick' 
+            }) 
           },
-          {
-            id: 'test_2',
-            text: '✅ Test Button 2'
+          { 
+            name: 'cta_copy', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '📋 COPY THIS', 
+              copy_code: 'TEST-CODE-123' 
+            }) 
           },
-          {
-            id: 'test_3',
-            text: '✅ Test Button 3'
+          { 
+            name: 'cta_url', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '🌐 VISIT SITE', 
+              url: 'https://example.com' 
+            }) 
           }
         ]
       });
       console.log(`✅ Test buttons sent to: ${sender}`);
     } catch (error) {
-      console.error('❌ Error sending test buttons:', error);
+      console.error('❌ Error:', error);
     }
-  },
-
-  async handleButton(sock, msg, buttonId) {
-    const jid = msg.key.remoteJid;
-    const sender = msg.key.participant || jid;
-    
-    console.log(`🧪 TEST BUTTON CLICKED: ${buttonId} from: ${sender}`);
-    
-    await sock.sendMessage(jid, { 
-      text: `✅ Test button *${buttonId}* was clicked successfully!\n\nButton handling is working properly.` 
-    });
   }
 };

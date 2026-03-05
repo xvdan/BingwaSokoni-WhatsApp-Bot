@@ -27,23 +27,33 @@ module.exports = {
     
     console.log(`📋 New session created for: ${sender}`);
     
-    // Show category selection with buttons
+    // Show category selection with PROPER BUTTON TYPES
     try {
       await sendButtons(sock, jid, {
-        text: '📱 *Bingwa Sokoni*\n\nChoose what you want to purchase:',
-        footer: 'Select a category to see available bundles',
+        title: '📱 *Bingwa Sokoni*',
+        text: 'Choose what you want to purchase:',
+        footer: 'Select a category',
         buttons: [
-          {
-            id: 'category_data',
-            text: '📶 Data Bundles'
+          { 
+            name: 'quick_reply', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '📶 Data Bundles', 
+              id: 'category_data' 
+            }) 
           },
-          {
-            id: 'category_sms',
-            text: '💬 SMS Bundles'
+          { 
+            name: 'quick_reply', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '💬 SMS Bundles', 
+              id: 'category_sms' 
+            }) 
           },
-          {
-            id: 'category_voice',
-            text: '📞 Voice Bundles'
+          { 
+            name: 'quick_reply', 
+            buttonParamsJson: JSON.stringify({ 
+              display_text: '📞 Voice Bundles', 
+              id: 'category_voice' 
+            }) 
           }
         ]
       });
@@ -53,23 +63,22 @@ module.exports = {
     }
   },
 
-  // Handle button clicks
   async handleButton(sock, msg, buttonId) {
     const jid = msg.key.remoteJid;
     const sender = msg.key.participant || jid;
     
-    console.log(`🔘 HANDLE BUTTON CALLED with ID: ${buttonId} from: ${sender}`);
+    console.log(`🔘 HANDLE BUTTON: ${buttonId} from: ${sender}`);
     
     try {
-      // Get or create session
-      let session = sessions.getSession(sender);
+      const session = sessions.getSession(sender);
       
       if (!session) {
-        console.log(`⚠️ No session found for: ${sender}, creating new one`);
-        session = sessions.createSession(sender);
+        console.log(`⚠️ No session found for: ${sender}`);
+        await sock.sendMessage(jid, { 
+          text: 'Please start a new purchase by typing .buy' 
+        });
+        return;
       }
-      
-      console.log(`📊 Current session step: ${session.step}`);
       
       // Handle category selection
       if (buttonId.startsWith('category_')) {
@@ -79,20 +88,18 @@ module.exports = {
         const categoryBundles = bundles.getByCategory(category);
         
         if (!categoryBundles || categoryBundles.length === 0) {
-          console.log(`❌ No bundles found for category: ${category}`);
           await sock.sendMessage(jid, { 
             text: `❌ No bundles available for ${category} at the moment.` 
           });
           return;
         }
         
-        // Update session
         sessions.updateSession(sender, { 
-          step: sessions.sessionSteps.SELECTING_BUNDLE,
+          step: 'selecting_bundle',
           category: category
         });
         
-        // Format bundle list with numbers
+        // Format bundle list
         let listText = `📦 *${category.toUpperCase()} BUNDLES*\n\n`;
         categoryBundles.forEach((bundle, index) => {
           listText += `${index + 1}. *${bundle.name}*\n`;
@@ -114,7 +121,6 @@ module.exports = {
         const bundle = session.bundle;
         
         if (!bundle) {
-          console.log(`❌ No bundle in session for: ${sender}`);
           await sock.sendMessage(jid, { 
             text: 'Session expired. Please start over with .buy' 
           });
@@ -124,7 +130,7 @@ module.exports = {
         
         sessions.updateSession(sender, { 
           paymentMethod: method,
-          step: method === 'auto' ? sessions.sessionSteps.ENTERING_PHONE : sessions.sessionSteps.MANUAL_PAYMENT
+          step: method === 'auto' ? 'entering_phone' : 'manual_payment'
         });
         
         if (method === 'auto') {
@@ -135,7 +141,6 @@ module.exports = {
                   `Please enter your Safaricom phone number:\n\n` +
                   `Example: *0712345678* or *254712345678*` 
           });
-          console.log(`📱 Requesting phone number for auto payment`);
         } else {
           await sock.sendMessage(jid, { 
             text: `💰 *Manual Payment Instructions*\n\n` +
@@ -146,28 +151,13 @@ module.exports = {
                   `3️⃣ Select *Buy Goods and Services*\n` +
                   `4️⃣ Enter Till Number: *${config.TILL_NUMBER}*\n` +
                   `5️⃣ Enter Amount: *${utils.formatCurrency(bundle.amount)}*\n` +
-                  `6️⃣ Enter PIN and Complete\n\n` +
-                  `After payment, you'll receive confirmation automatically.` 
+                  `6️⃣ Enter PIN and Complete` 
           });
-          console.log(`💰 Manual payment instructions sent`);
-          
-          // Clear session after 5 minutes
-          setTimeout(() => {
-            const currentSession = sessions.getSession(sender);
-            if (currentSession && currentSession.paymentMethod === 'manual') {
-              sessions.clearSession(sender);
-              console.log(`🧹 Cleared manual payment session for: ${sender}`);
-            }
-          }, 300000);
         }
-      } else {
-        console.log(`⚠️ Unknown button ID: ${buttonId}`);
       }
+      
     } catch (error) {
       console.error('❌ Error in handleButton:', error);
-      await sock.sendMessage(jid, { 
-        text: 'An error occurred. Please try again with .buy' 
-      });
     }
   }
 };

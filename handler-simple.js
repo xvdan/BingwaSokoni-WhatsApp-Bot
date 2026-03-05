@@ -46,43 +46,76 @@ async function handleMessage(sock, msg) {
     } else if (message.extendedTextMessage?.text) {
       text = message.extendedTextMessage.text;
       messageType = 'extended_text';
-    } else if (message.buttonsResponseMessage) {
-      // This is a button response
+    } 
+    
+    // Log message type for debugging
+    const msgKeys = Object.keys(message);
+    if (msgKeys.length > 0) {
+      messageType = msgKeys[0];
+      console.log(`📨 Message type: ${messageType} from ${sender}`);
+    }
+    
+    // ============= HANDLE BUTTON RESPONSES =============
+    
+    // Handle quick_reply buttons
+    if (message.buttonsResponseMessage) {
       const buttonId = message.buttonsResponseMessage.selectedButtonId;
       const buttonText = message.buttonsResponseMessage.selectedDisplayText;
-      console.log(`🔴🔴🔴 BUTTON CLICK DETECTED! ID: ${buttonId}, Text: ${buttonText} from ${sender}`);
+      console.log(`🔴 BUTTON CLICK - quick_reply: ID=${buttonId}, Text=${buttonText}`);
       
-      // Handle the button click directly here
+      // Handle the button click
       await handleButtonClick(sock, jid, sender, buttonId);
       return;
-    } else if (message.listResponseMessage) {
-      // This is a list response
-      const selection = message.listResponseMessage.singleSelectReply?.selectedRowId;
-      console.log(`📋 LIST SELECTION: ${selection} from ${sender}`);
-      await handleButtonClick(sock, jid, sender, selection);
+    }
+    
+    // Handle template button replies (like in the working code)
+    if (message.templateButtonReplyMessage) {
+      const buttonId = message.templateButtonReplyMessage.selectedId;
+      const buttonText = message.templateButtonReplyMessage.selectedDisplayText;
+      console.log(`🔴 TEMPLATE BUTTON: ID=${buttonId}, Text=${buttonText}`);
+      
+      await handleButtonClick(sock, jid, sender, buttonId);
       return;
-    } else if (message.interactiveResponseMessage) {
-      console.log(`🔴 INTERACTIVE RESPONSE from ${sender}`);
-      // Try to extract button ID
-      try {
-        if (message.interactiveResponseMessage.nativeFlowResponseMessage) {
-          const params = JSON.parse(message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson);
+    }
+    
+    // Handle interactive responses
+    if (message.interactiveResponseMessage) {
+      console.log(`🔴 INTERACTIVE RESPONSE`);
+      
+      if (message.interactiveResponseMessage.nativeFlowResponseMessage) {
+        try {
+          const params = JSON.parse(
+            message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson
+          );
           if (params.id) {
             await handleButtonClick(sock, jid, sender, params.id);
             return;
           }
+        } catch (e) {
+          console.log('Error parsing interactive response:', e);
         }
-      } catch (e) {
-        console.log('Error parsing interactive response:', e);
       }
-    } else {
-      // Log other message types for debugging
-      console.log(`📨 Message type: ${Object.keys(message)[0]} from ${sender}`);
     }
     
-    console.log(`📨 Message from ${sender}: ${text || '[NON-TEXT]'}`);
+    // Handle list responses
+    if (message.listResponseMessage) {
+      const selection = message.listResponseMessage.singleSelectReply?.selectedRowId;
+      console.log(`🔴 LIST SELECTION: ${selection}`);
+      
+      if (selection) {
+        await handleButtonClick(sock, jid, sender, selection);
+        return;
+      }
+    }
     
-    // Get user session
+    // Log non-text messages
+    if (text === '') {
+      console.log(`📨 [NON-TEXT] from ${sender} - Type: ${messageType}`);
+    } else {
+      console.log(`📨 Message from ${sender}: ${text}`);
+    }
+    
+    // Get user session for text-based flow
     const session = sessions.getSession(sender);
     
     // Handle purchase flow for text responses
@@ -98,37 +131,42 @@ async function handleMessage(sock, msg) {
         
         if (index >= 0 && index < categoryBundles.length) {
           const selectedBundle = categoryBundles[index];
-          console.log(`✅ Bundle selected: ${selectedBundle.name} (${selectedBundle.amount})`);
+          console.log(`✅ Bundle selected: ${selectedBundle.name}`);
           
           sessions.updateSession(sender, { 
             bundle: selectedBundle,
             step: 'selecting_payment_method'
           });
           
-          // Show payment method buttons
+          // Show payment method buttons with proper format
           try {
             const { sendButtons } = require('gifted-btns');
             await sendButtons(sock, jid, {
-              text: `📦 *Selected: ${selectedBundle.name}*\n` +
-                    `💰 *Amount: ${utils.formatCurrency(selectedBundle.amount)}*\n\n` +
-                    `Choose payment method:`,
+              title: '📦 *Payment Method*',
+              text: `Bundle: ${selectedBundle.name}\nAmount: ${utils.formatCurrency(selectedBundle.amount)}`,
+              footer: 'Choose payment method',
               buttons: [
-                {
-                  id: 'pay_auto',
-                  text: '💳 Auto (STK Push)'
+                { 
+                  name: 'quick_reply', 
+                  buttonParamsJson: JSON.stringify({ 
+                    display_text: '💳 Auto (STK Push)', 
+                    id: 'pay_auto' 
+                  }) 
                 },
-                {
-                  id: 'pay_manual',
-                  text: '💵 Manual (Till)'
+                { 
+                  name: 'quick_reply', 
+                  buttonParamsJson: JSON.stringify({ 
+                    display_text: '💵 Manual (Till)', 
+                    id: 'pay_manual' 
+                  }) 
                 }
               ]
             });
-            console.log(`✅ Payment method buttons sent to ${sender}`);
+            console.log(`✅ Payment buttons sent`);
           } catch (error) {
             console.error('❌ Error sending payment buttons:', error);
           }
         } else {
-          console.log(`❌ Invalid bundle number: ${text}`);
           await sock.sendMessage(jid, { 
             text: '❌ Invalid selection. Please reply with a valid number.' 
           });
@@ -136,9 +174,9 @@ async function handleMessage(sock, msg) {
         return;
       }
       
-      // STEP 2: Phone number input for auto payment
+      // STEP 2: Phone number input
       if (session.step === 'entering_phone' && session.paymentMethod === 'auto') {
-        console.log(`📱 Phone number received: ${text} from ${sender}`);
+        console.log(`📱 Phone number: ${text}`);
         
         const phone = utils.formatPhoneNumber(text);
         
@@ -149,27 +187,19 @@ async function handleMessage(sock, msg) {
           });
           
           await sock.sendMessage(jid, { 
-            text: `⏳ *Processing Payment*\n\n` +
-                  `Please check your phone for STK Push prompt.\n` +
-                  `Enter your PIN to complete payment.` 
+            text: `⏳ *Processing Payment*\n\nPlease check your phone for STK Push prompt.` 
           });
-          
-          console.log(`💰 Processing payment for ${phone} amount: ${session.bundle.amount}`);
           
           setTimeout(async () => {
             await sock.sendMessage(jid, { 
-              text: `✅ *Payment Successful!*\n\n` +
-                    `Bundle: ${session.bundle.name}\n` +
-                    `Amount: ${utils.formatCurrency(session.bundle.amount)}\n\n` +
-                    `Your bundle will be delivered shortly.` 
+              text: `✅ *Payment Successful!*\n\nBundle: ${session.bundle.name}\nAmount: ${utils.formatCurrency(session.bundle.amount)}` 
             });
-            
             sessions.clearSession(sender);
           }, 5000);
           
         } else {
           await sock.sendMessage(jid, { 
-            text: '❌ Invalid phone number. Please use format: 0712345678 or 254712345678' 
+            text: '❌ Invalid phone number. Use format: 0712345678' 
           });
         }
         return;
@@ -184,117 +214,43 @@ async function handleMessage(sock, msg) {
       const command = commands.get(commandName);
       
       if (command) {
-        console.log(`⚡ Executing command: ${commandName} from ${sender}`);
+        console.log(`⚡ Executing command: ${commandName}`);
         await command.execute(sock, msg, args);
       } else {
         await sock.sendMessage(jid, { 
-          text: `❌ Unknown command. Type ${config.PREFIX}help to see available commands.` 
+          text: `❌ Unknown command. Type ${config.PREFIX}help to see commands.` 
         });
       }
     }
     
   } catch (error) {
-    console.error('❌ Error handling message:', error);
+    console.error('❌ Error:', error);
   }
 }
 
-// Handle button clicks directly
+// Handle button clicks
 async function handleButtonClick(sock, jid, sender, buttonId) {
-  console.log(`🔴🔴🔴 HANDLING BUTTON: ${buttonId} for ${sender}`);
+  console.log(`🔴🔴🔴 HANDLING BUTTON: ${buttonId}`);
   
   try {
     // Get or create session
     let session = sessions.getSession(sender);
     
     if (!session) {
-      console.log(`⚠️ No session found, creating new one for ${sender}`);
+      console.log(`⚠️ No session, creating new`);
       session = sessions.createSession(sender);
     }
     
-    // Handle category selection
-    if (buttonId.startsWith('category_')) {
-      const category = buttonId.replace('category_', '');
-      console.log(`📦 Category selected: ${category}`);
-      
-      const categoryBundles = bundles.getByCategory(category);
-      
-      if (!categoryBundles || categoryBundles.length === 0) {
-        await sock.sendMessage(jid, { 
-          text: `❌ No bundles available for ${category} at the moment.` 
-        });
-        return;
+    // Find which command handles this button
+    if (buttonId.startsWith('category_') || buttonId.startsWith('pay_')) {
+      const buyCommand = commands.get('buy');
+      if (buyCommand && buyCommand.handleButton) {
+        await buyCommand.handleButton(sock, msg, buttonId);
       }
-      
-      sessions.updateSession(sender, { 
-        step: 'selecting_bundle',
-        category: category
-      });
-      
-      // Format bundle list
-      let listText = `📦 *${category.toUpperCase()} BUNDLES*\n\n`;
-      categoryBundles.forEach((bundle, index) => {
-        listText += `${index + 1}. *${bundle.name}*\n`;
-        listText += `   💰 ${utils.formatCurrency(bundle.amount)}\n`;
-        listText += `   ⏱️ ${bundle.validity}\n\n`;
-      });
-      
-      listText += `Reply with the *number* (1-${categoryBundles.length}) of the bundle you want.`;
-      
-      await sock.sendMessage(jid, { text: listText });
-      console.log(`✅ Bundle list sent for category: ${category}`);
-    }
-    
-    // Handle payment method selection
-    else if (buttonId.startsWith('pay_')) {
-      const method = buttonId.replace('pay_', '');
-      console.log(`💳 Payment method selected: ${method}`);
-      
-      const bundle = session.bundle;
-      
-      if (!bundle) {
-        await sock.sendMessage(jid, { 
-          text: 'Session expired. Please start over with .buy' 
-        });
-        sessions.clearSession(sender);
-        return;
-      }
-      
-      sessions.updateSession(sender, { 
-        paymentMethod: method,
-        step: method === 'auto' ? 'entering_phone' : 'manual_payment'
-      });
-      
-      if (method === 'auto') {
-        await sock.sendMessage(jid, { 
-          text: `📱 *Automatic Payment*\n\n` +
-                `Bundle: *${bundle.name}*\n` +
-                `Amount: *${utils.formatCurrency(bundle.amount)}*\n\n` +
-                `Please enter your Safaricom phone number:\n\n` +
-                `Example: *0712345678* or *254712345678*` 
-        });
-      } else {
-        await sock.sendMessage(jid, { 
-          text: `💰 *Manual Payment Instructions*\n\n` +
-                `Bundle: *${bundle.name}*\n` +
-                `Amount: *${utils.formatCurrency(bundle.amount)}*\n\n` +
-                `1️⃣ Go to M-Pesa\n` +
-                `2️⃣ Select *Lipa na M-Pesa*\n` +
-                `3️⃣ Select *Buy Goods and Services*\n` +
-                `4️⃣ Enter Till Number: *${config.TILL_NUMBER}*\n` +
-                `5️⃣ Enter Amount: *${utils.formatCurrency(bundle.amount)}*\n` +
-                `6️⃣ Enter PIN and Complete` 
-        });
-        
-        setTimeout(() => {
-          sessions.clearSession(sender);
-        }, 300000);
-      }
-    }
-    
-    // Handle test buttons
-    else if (buttonId.startsWith('test_')) {
+    } else if (buttonId.startsWith('test_')) {
+      // Handle test buttons
       await sock.sendMessage(jid, { 
-        text: `✅ Test button *${buttonId}* was clicked successfully!` 
+        text: `✅ Test button *${buttonId}* clicked successfully!` 
       });
     }
     
@@ -309,13 +265,9 @@ async function handleStatus(sock, msg) {
     if (config.AUTO_READ_STATUS) {
       await sock.readMessages([msg.key]);
     }
-    
     if (config.AUTO_LIKE_STATUS) {
       await sock.sendMessage('status@broadcast', {
-        react: {
-          text: '❤️',
-          key: msg.key
-        }
+        react: { text: '❤️', key: msg.key }
       });
     }
   } catch (error) {
