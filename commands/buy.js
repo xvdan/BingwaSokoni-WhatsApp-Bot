@@ -27,24 +27,15 @@ module.exports = {
     
     console.log(`📋 New session created for: ${sender}`);
     
-    // Show category selection with SIMPLE button format
+    // Show category selection with simple button format
     try {
       await sendButtons(sock, jid, {
         text: '📱 *Bingwa Sokoni*\n\nChoose what you want to purchase:',
         footer: 'Select a category',
         buttons: [
-          { 
-            id: 'category_data', 
-            text: '📶 Data Bundles' 
-          },
-          { 
-            id: 'category_sms', 
-            text: '💬 SMS Bundles' 
-          },
-          { 
-            id: 'category_voice', 
-            text: '📞 Voice Bundles' 
-          }
+          { id: 'category_data', text: '📶 Data Bundles' },
+          { id: 'category_sms', text: '💬 SMS Bundles' },
+          { id: 'category_voice', text: '📞 Voice Bundles' }
         ]
       });
       console.log(`✅ Category buttons sent to: ${sender}`);
@@ -141,7 +132,8 @@ module.exports = {
                   `3️⃣ Select *Buy Goods and Services*\n` +
                   `4️⃣ Enter Till Number: *${config.TILL_NUMBER}*\n` +
                   `5️⃣ Enter Amount: *${utils.formatCurrency(bundle.amount)}*\n` +
-                  `6️⃣ Enter PIN and Complete` 
+                  `6️⃣ Enter PIN and Complete\n\n` +
+                  `After payment, you'll receive confirmation automatically.` 
           });
         }
       }

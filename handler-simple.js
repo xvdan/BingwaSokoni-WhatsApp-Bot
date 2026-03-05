@@ -4,6 +4,7 @@ const config = require('./config');
 const sessions = require('./lib/sessions');
 const bundles = require('./lib/bundles');
 const utils = require('./lib/utils');
+const mpesa = require('./lib/mpesa');
 
 const commands = new Map();
 
@@ -62,19 +63,15 @@ async function handleMessage(sock, msg) {
       const buttonId = message.buttonsResponseMessage.selectedButtonId;
       const buttonText = message.buttonsResponseMessage.selectedDisplayText;
       console.log(`🔴 BUTTON CLICK - quick_reply: ID=${buttonId}, Text=${buttonText}`);
-      
-      // Handle the button click - pass msg along
       await handleButtonClick(sock, msg, jid, sender, buttonId);
       return;
     }
     
-    // Handle template button replies (like in the working code)
+    // Handle template button replies
     if (message.templateButtonReplyMessage) {
       const buttonId = message.templateButtonReplyMessage.selectedId;
       const buttonText = message.templateButtonReplyMessage.selectedDisplayText;
       console.log(`🔴 TEMPLATE BUTTON: ID=${buttonId}, Text=${buttonText}`);
-      
-      // Handle the button click - pass msg along
       await handleButtonClick(sock, msg, jid, sender, buttonId);
       return;
     }
@@ -82,7 +79,6 @@ async function handleMessage(sock, msg) {
     // Handle interactive responses
     if (message.interactiveResponseMessage) {
       console.log(`🔴 INTERACTIVE RESPONSE`);
-      
       if (message.interactiveResponseMessage.nativeFlowResponseMessage) {
         try {
           const params = JSON.parse(
@@ -102,18 +98,10 @@ async function handleMessage(sock, msg) {
     if (message.listResponseMessage) {
       const selection = message.listResponseMessage.singleSelectReply?.selectedRowId;
       console.log(`🔴 LIST SELECTION: ${selection}`);
-      
       if (selection) {
         await handleButtonClick(sock, msg, jid, sender, selection);
         return;
       }
-    }
-    
-    // Log non-text messages
-    if (text === '') {
-      console.log(`📨 [NON-TEXT] from ${sender} - Type: ${messageType}`);
-    } else {
-      console.log(`📨 Message from ${sender}: ${text}`);
     }
     
     // Get user session for text-based flow
@@ -139,7 +127,7 @@ async function handleMessage(sock, msg) {
             step: 'selecting_payment_method'
           });
           
-          // Show payment method buttons with simple format
+          // Show payment method buttons
           try {
             const { sendButtons } = require('gifted-btns');
             await sendButtons(sock, jid, {
@@ -162,32 +150,100 @@ async function handleMessage(sock, msg) {
         return;
       }
       
-      // STEP 2: Phone number input
+      // STEP 2: Phone number input for auto payment
       if (session.step === 'entering_phone' && session.paymentMethod === 'auto') {
-        console.log(`📱 Phone number: ${text}`);
+        console.log(`📱 Raw input received: "${text}"`);
         
-        const phone = utils.formatPhoneNumber(text);
+        // Skip if empty
+        if (!text || text.trim() === '') {
+          console.log('⚠️ Empty message, ignoring');
+          return;
+        }
         
-        if (phone.length === 12 && phone.startsWith('254')) {
-          sessions.updateSession(sender, { 
-            phone: phone,
-            step: 'processing_payment'
-          });
+        // Skip if this is our own instruction message
+        if (text.includes('*Automatic Payment*') || 
+            text.includes('Please enter your Safaricom phone number')) {
+          console.log('⚠️ Ignoring instruction message');
+          return;
+        }
+        
+        // Extract digits only
+        const cleanedInput = text.replace(/\D/g, '');
+        console.log(`📱 Cleaned input: "${cleanedInput}"`);
+        
+        // Validate phone number (Kenyan format)
+        if (cleanedInput.length >= 9 && cleanedInput.length <= 12) {
+          const phone = utils.formatPhoneNumber(text);
+          console.log(`📱 Formatted phone: ${phone}`);
           
-          await sock.sendMessage(jid, { 
-            text: `⏳ *Processing Payment*\n\nPlease check your phone for STK Push prompt.` 
-          });
-          
-          setTimeout(async () => {
-            await sock.sendMessage(jid, { 
-              text: `✅ *Payment Successful!*\n\nBundle: ${session.bundle.name}\nAmount: ${utils.formatCurrency(session.bundle.amount)}` 
+          if (phone.length === 12 && phone.startsWith('254')) {
+            sessions.updateSession(sender, { 
+              phone: phone,
+              step: 'processing_payment'
             });
-            sessions.clearSession(sender);
-          }, 5000);
-          
+            
+            // Send processing message
+            await sock.sendMessage(jid, { 
+              text: `⏳ *Processing Payment*\n\nPlease check your phone for STK Push prompt.\nEnter your PIN to complete payment.` 
+            });
+            
+            // Call M-Pesa API
+            console.log(`💰 Calling M-Pesa API for ${phone} amount: ${session.bundle.amount}`);
+            
+            try {
+              const result = await mpesa.stkPush(
+                phone, 
+                session.bundle.amount, 
+                `BUNDLE-${Date.now()}`
+              );
+              
+              if (result.success) {
+                console.log(`✅ STK Push sent successfully: ${result.transactionId}`);
+                
+                // Store transaction ID
+                sessions.updateSession(sender, { 
+                  transactionId: result.transactionId 
+                });
+                
+                // Wait for payment confirmation (you can implement proper callback later)
+                setTimeout(async () => {
+                  const currentSession = sessions.getSession(sender);
+                  if (currentSession && currentSession.step === 'processing_payment') {
+                    await sock.sendMessage(jid, { 
+                      text: `✅ *Payment Successful!*\n\n` +
+                            `Bundle: ${session.bundle.name}\n` +
+                            `Amount: ${utils.formatCurrency(session.bundle.amount)}\n\n` +
+                            `Your bundle will be delivered shortly.\n` +
+                            `Join our channel for updates: t.me/bingwasokoni` 
+                    });
+                    sessions.clearSession(sender);
+                  }
+                }, 30000); // Wait 30 seconds for payment
+                
+              } else {
+                console.error('❌ STK Push failed:', result.error);
+                await sock.sendMessage(jid, { 
+                  text: `❌ *Payment Failed*\n\n${result.error || 'Please try again or use manual payment.'}` 
+                });
+                sessions.clearSession(sender);
+              }
+            } catch (error) {
+              console.error('❌ M-Pesa API error:', error);
+              await sock.sendMessage(jid, { 
+                text: `❌ *Payment Error*\n\nPlease try again later or use manual payment.` 
+              });
+              sessions.clearSession(sender);
+            }
+            
+          } else {
+            await sock.sendMessage(jid, { 
+              text: '❌ Invalid phone number format. Please use format: 0712345678' 
+            });
+          }
         } else {
+          console.log(`❌ Invalid phone number length: ${cleanedInput.length}`);
           await sock.sendMessage(jid, { 
-            text: '❌ Invalid phone number. Use format: 0712345678' 
+            text: '❌ Invalid phone number. Please enter a valid Safaricom number.\n\nExample: 0712345678' 
           });
         }
         return;
@@ -216,7 +272,7 @@ async function handleMessage(sock, msg) {
   }
 }
 
-// Handle button clicks - FIXED: Added msg parameter
+// Handle button clicks
 async function handleButtonClick(sock, msg, jid, sender, buttonId) {
   console.log(`🔴🔴🔴 HANDLING BUTTON: ${buttonId} for ${sender}`);
   
@@ -233,7 +289,6 @@ async function handleButtonClick(sock, msg, jid, sender, buttonId) {
     if (buttonId.startsWith('category_') || buttonId.startsWith('pay_')) {
       const buyCommand = commands.get('buy');
       if (buyCommand && buyCommand.handleButton) {
-        // Pass the original msg to the command's handleButton
         await buyCommand.handleButton(sock, msg, buttonId);
       } else {
         console.log('❌ Buy command or handleButton not found');
@@ -243,7 +298,6 @@ async function handleButtonClick(sock, msg, jid, sender, buttonId) {
       if (testCommand && testCommand.handleButton) {
         await testCommand.handleButton(sock, msg, buttonId);
       } else {
-        // Fallback response for test buttons
         await sock.sendMessage(jid, { 
           text: `✅ Test button *${buttonId}* clicked successfully!` 
         });
