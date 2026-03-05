@@ -63,8 +63,8 @@ async function handleMessage(sock, msg) {
       const buttonText = message.buttonsResponseMessage.selectedDisplayText;
       console.log(`🔴 BUTTON CLICK - quick_reply: ID=${buttonId}, Text=${buttonText}`);
       
-      // Handle the button click
-      await handleButtonClick(sock, jid, sender, buttonId);
+      // Handle the button click - pass msg along
+      await handleButtonClick(sock, msg, jid, sender, buttonId);
       return;
     }
     
@@ -74,7 +74,8 @@ async function handleMessage(sock, msg) {
       const buttonText = message.templateButtonReplyMessage.selectedDisplayText;
       console.log(`🔴 TEMPLATE BUTTON: ID=${buttonId}, Text=${buttonText}`);
       
-      await handleButtonClick(sock, jid, sender, buttonId);
+      // Handle the button click - pass msg along
+      await handleButtonClick(sock, msg, jid, sender, buttonId);
       return;
     }
     
@@ -88,7 +89,7 @@ async function handleMessage(sock, msg) {
             message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson
           );
           if (params.id) {
-            await handleButtonClick(sock, jid, sender, params.id);
+            await handleButtonClick(sock, msg, jid, sender, params.id);
             return;
           }
         } catch (e) {
@@ -103,7 +104,7 @@ async function handleMessage(sock, msg) {
       console.log(`🔴 LIST SELECTION: ${selection}`);
       
       if (selection) {
-        await handleButtonClick(sock, jid, sender, selection);
+        await handleButtonClick(sock, msg, jid, sender, selection);
         return;
       }
     }
@@ -138,28 +139,15 @@ async function handleMessage(sock, msg) {
             step: 'selecting_payment_method'
           });
           
-          // Show payment method buttons with proper format
+          // Show payment method buttons with simple format
           try {
             const { sendButtons } = require('gifted-btns');
             await sendButtons(sock, jid, {
-              title: '📦 *Payment Method*',
-              text: `Bundle: ${selectedBundle.name}\nAmount: ${utils.formatCurrency(selectedBundle.amount)}`,
-              footer: 'Choose payment method',
+              text: `📦 *Selected: ${selectedBundle.name}*\n💰 *Amount: ${utils.formatCurrency(selectedBundle.amount)}*\n\nChoose payment method:`,
+              footer: 'Select payment option',
               buttons: [
-                { 
-                  name: 'quick_reply', 
-                  buttonParamsJson: JSON.stringify({ 
-                    display_text: '💳 Auto (STK Push)', 
-                    id: 'pay_auto' 
-                  }) 
-                },
-                { 
-                  name: 'quick_reply', 
-                  buttonParamsJson: JSON.stringify({ 
-                    display_text: '💵 Manual (Till)', 
-                    id: 'pay_manual' 
-                  }) 
-                }
+                { id: 'pay_auto', text: '💳 Auto (STK Push)' },
+                { id: 'pay_manual', text: '💵 Manual (Till)' }
               ]
             });
             console.log(`✅ Payment buttons sent`);
@@ -224,13 +212,13 @@ async function handleMessage(sock, msg) {
     }
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error in handleMessage:', error);
   }
 }
 
-// Handle button clicks
-async function handleButtonClick(sock, jid, sender, buttonId) {
-  console.log(`🔴🔴🔴 HANDLING BUTTON: ${buttonId}`);
+// Handle button clicks - FIXED: Added msg parameter
+async function handleButtonClick(sock, msg, jid, sender, buttonId) {
+  console.log(`🔴🔴🔴 HANDLING BUTTON: ${buttonId} for ${sender}`);
   
   try {
     // Get or create session
@@ -245,13 +233,21 @@ async function handleButtonClick(sock, jid, sender, buttonId) {
     if (buttonId.startsWith('category_') || buttonId.startsWith('pay_')) {
       const buyCommand = commands.get('buy');
       if (buyCommand && buyCommand.handleButton) {
+        // Pass the original msg to the command's handleButton
         await buyCommand.handleButton(sock, msg, buttonId);
+      } else {
+        console.log('❌ Buy command or handleButton not found');
       }
     } else if (buttonId.startsWith('test_')) {
-      // Handle test buttons
-      await sock.sendMessage(jid, { 
-        text: `✅ Test button *${buttonId}* clicked successfully!` 
-      });
+      const testCommand = commands.get('testbtn');
+      if (testCommand && testCommand.handleButton) {
+        await testCommand.handleButton(sock, msg, buttonId);
+      } else {
+        // Fallback response for test buttons
+        await sock.sendMessage(jid, { 
+          text: `✅ Test button *${buttonId}* clicked successfully!` 
+        });
+      }
     }
     
   } catch (error) {
