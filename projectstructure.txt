@@ -1,0 +1,13 @@
+BingwaSokoni-WhatsApp-Bot
+│
+├── commands/
+│   ├── buy.js
+│   ├── menu.js
+│
+├── config.js
+├── index.js
+├── package.json
+├── app.json
+├── README.md
+├── .env
+└── .gitignore

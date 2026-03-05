@@ -1,0 +1,48 @@
+{
+  "name": "bingwasokoni-whatsapp-bot",
+  "description": "WhatsApp bot for selling Safaricom Bingwa Sokoni data bundles with MPESA payment integration.",
+  "repository": "https://github.com/xvdan/BingwaSokoni-WhatsApp-Bot",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "mpesa",
+    "bingwa",
+    "safaricom"
+  ],
+  "env": {
+    "SESSION_ID": {
+      "description": "WhatsApp session ID generated from the session generator",
+      "required": true
+    },
+    "MODE": {
+      "description": "Bot mode: public or private",
+      "required": true,
+      "value": "public"
+    },
+    "TIME_ZONE": {
+      "description": "Server timezone",
+      "required": true,
+      "value": "Africa/Nairobi"
+    },
+    "AUTO_LIKE_STATUS": {
+      "description": "Automatically like WhatsApp statuses",
+      "required": false,
+      "value": "true"
+    },
+    "AUTO_READ_STATUS": {
+      "description": "Automatically read WhatsApp statuses",
+      "required": false,
+      "value": "true"
+    },
+    "DATABASE_URL": {
+      "description": "Database connection string (optional)",
+      "required": false
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-nodejs#latest"
+    }
+  ]
+}
