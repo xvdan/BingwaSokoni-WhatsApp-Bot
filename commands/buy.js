@@ -27,33 +27,23 @@ module.exports = {
     
     console.log(`📋 New session created for: ${sender}`);
     
-    // Show category selection with PROPER BUTTON TYPES
+    // Show category selection with SIMPLE button format
     try {
       await sendButtons(sock, jid, {
-        title: '📱 *Bingwa Sokoni*',
-        text: 'Choose what you want to purchase:',
+        text: '📱 *Bingwa Sokoni*\n\nChoose what you want to purchase:',
         footer: 'Select a category',
         buttons: [
           { 
-            name: 'quick_reply', 
-            buttonParamsJson: JSON.stringify({ 
-              display_text: '📶 Data Bundles', 
-              id: 'category_data' 
-            }) 
+            id: 'category_data', 
+            text: '📶 Data Bundles' 
           },
           { 
-            name: 'quick_reply', 
-            buttonParamsJson: JSON.stringify({ 
-              display_text: '💬 SMS Bundles', 
-              id: 'category_sms' 
-            }) 
+            id: 'category_sms', 
+            text: '💬 SMS Bundles' 
           },
           { 
-            name: 'quick_reply', 
-            buttonParamsJson: JSON.stringify({ 
-              display_text: '📞 Voice Bundles', 
-              id: 'category_voice' 
-            }) 
+            id: 'category_voice', 
+            text: '📞 Voice Bundles' 
           }
         ]
       });
