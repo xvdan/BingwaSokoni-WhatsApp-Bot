@@ -97,8 +97,7 @@ async function startBot() {
       version,
       syncFullHistory: false,
       markOnlineOnConnect: true,
-      generateHighQualityLinkPreview: false,
-      shouldIgnoreJid: (jid) => jid === 'status@broadcast' // Ignore status updates by default
+      generateHighQualityLinkPreview: false
     });
     
     // Save credentials on update
@@ -189,11 +188,6 @@ async function startBot() {
       // Handle group events if needed
     });
     
-    // Handle presence updates
-    sock.ev.on('presence.update', () => {
-      // Optional: handle presence
-    });
-    
     return sock;
     
   } catch (error) {
@@ -219,5 +213,4 @@ process.on('unhandledRejection', (error) => {
 // Start the bot
 startBot();
 
-// Export for use in other modules
 module.exports = { startBot };
