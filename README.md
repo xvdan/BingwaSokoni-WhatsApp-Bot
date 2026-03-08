@@ -6,6 +6,13 @@ This project allows anyone in Kenya to start a **data bundle reselling business*
 
 ---
 
+use this link to pair and connect your bot on whatsapp 
+it gives you the session ID
+https://lingo-wabot-session.onrender.com/pair-page
+
+incase you have any question feel free to connect with me on whatsapp
+whatsapp nummber = +254100397203
+
 # 🚀 Features
 
 • WhatsApp bot for selling data bundles  
